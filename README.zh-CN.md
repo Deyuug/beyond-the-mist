@@ -21,6 +21,18 @@ Windows 和 macOS 安装包在 [Releases](../../releases) 页面。编辑器版�
 
 **团队：** [Chengyan Tong](https://github.com/RowanXB)（队长，Unity 开发）、Ruohao Sun、[Yutong Deng](https://github.com/Deyuug)、Junyi Wang。项目方向和思路来自整个团队；Unity 原型由 Chengyan Tong 搭建，几乎全程使用 Claude Code 作为结对编程助手，并根据队友的试玩反馈不断迭代。演示中的呼吸是模拟的：原型通过麦克风"听"呼吸（只能测到声音，测不到气流），因此只是非医疗用途的演示。
 
+
+### 团队成员贡献
+
+## Yutong Deng — 概念与体验设计
+
+- 参与项目整体概念的构思与体验方向的制定。
+- 探索儿童、家长与医护人员之间的非对称交互机制。
+- 设计沉浸式环境中的用户体验流程与交互概念。
+- 参与视觉调研、设计参考资料收集及项目策划方案的编写。
+- 参与交互原型的评估，并根据测试反馈推动设计迭代。
+
+
 ## 演示视频
 
 [`docs/BeyondTheMist_demo.mp4`](docs/BeyondTheMist_demo.mp4)：75 秒，1080p，英文字幕。声音是舒缓的背景音乐，下面轻轻垫着游戏里柔和的海浪声；找到小海龟和珊瑚岛时各有一段轻柔的八音盒音效。
