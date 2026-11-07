@@ -31,8 +31,6 @@ Windows 和 macOS 安装包在 [Releases](../../releases) 页面。编辑器版�
 - 参与视觉调研、设计参考资料整理及项目提案材料的制作。
 - 参与原型评估，并为设计迭代提供反馈。
 
-
-
 ## 演示视频
 
 [`docs/BeyondTheMist_demo.mp4`](docs/BeyondTheMist_demo.mp4)：75 秒，1080p，英文字幕。声音是舒缓的背景音乐，下面轻轻垫着游戏里柔和的海浪声；找到小海龟和珊瑚岛时各有一段轻柔的八音盒音效。
