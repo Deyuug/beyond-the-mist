@@ -21,6 +21,20 @@ Downloads for Windows and macOS are on the [Releases](../../releases) page. Edit
 
 **Team:** [Chengyan Tong](https://github.com/RowanXB) (team lead, Unity build), Ruohao Sun, [Yutong Deng](https://github.com/Deyuug) and Junyi Wang. The idea and direction came from the whole team; the Unity prototype was built by Chengyan Tong, almost entirely with Claude Code as pair programmer, iterating on teammates' playtest feedback. The breathing in the demo is simulated: the prototype "hears" breathing through a microphone (sound, not airflow), so it is a non-medical demonstration only.
 
+
+
+### Team Contributions
+
+## Yutong Deng — Concept & Experience Design
+
+- Contributed to the overall concept development and experience direction.
+- Explored asymmetric interactions between the child, parent, and clinician.
+- Developed user experience flows and interaction concepts for the immersive environment.
+- Contributed visual research, design references, and project proposal materials.
+- Participated in prototype evaluation and iterative design feedback.
+
+
+
 ## Demo video
 
 [`docs/BeyondTheMist_demo.mp4`](docs/BeyondTheMist_demo.mp4): 75 seconds, 1080p, English captions. The sound is gentle background music over the game's soft sea sound, with a soft music-box chime when the Little Turtle and the Coral Island are found.
