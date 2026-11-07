@@ -235,9 +235,9 @@ namespace ARR
                     string s = Encoding.ASCII.GetString(udp.Receive(ref ep)).Trim();
                     int sp = s.LastIndexOf(' ');
                     if (sp >= 0) s = s.Substring(sp + 1);
-                    if (float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v))
+                    if (float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v) && float.IsFinite(v))
                     {
-                        udpValue = v;
+                        udpValue = Mathf.Clamp01(v);
                         Interlocked.Exchange(ref udpTicks, DateTime.UtcNow.Ticks);
                     }
                 }
