@@ -200,3 +200,14 @@ Packaged apps are on the GitHub Releases page:
 | `DemoAutoplay.cs` | `-arrCapture <dir>`: runs the whole flow automatically and takes screenshots; `-arrQuick` runs only the breathing part; `-arrClip` records a 30-second clip following the breath guide; `-arrTreasureTest` places the boat 60 m in front of the Little Turtle with the light on it and captures thick-mist and calm frames to check the treasure glow |
 | `PromoRecorder.cs` | `-arrPromo <dir>`: records the 75-second demo video frame by frame from a storyboard, rendering the game's own sound in sync as `audio.wav`; `Tools/make_promo.py` then adds English captions and composes it |
 | `DeckShots.cs` | `-arrDeckShots <dir>`: takes a few screenshots of the child's view for slides (the lighthouse at the start, finding the jellyfish, a calm sea, thick mist on the in-breath, mist clearing on the out-breath) |
+
+
+## Team Contributions
+
+### Yutong Deng — Concept & Experience Design
+
+- Contributed to the overall concept development and experience direction.
+- Explored asymmetric interactions between the child, parent, and clinician.
+- Developed user experience flows and interaction concepts for the immersive environment.
+- Contributed visual research, design references, and project proposal materials.
+- Participated in prototype evaluation and iterative design feedback.
