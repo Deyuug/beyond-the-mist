@@ -9,7 +9,7 @@
 
 Demo video: [`docs/BeyondTheMist_demo.mp4`](docs/BeyondTheMist_demo.mp4) (75 s, English captions). Downloads for macOS and Windows are on the [Releases](../../releases) page. Unity 6000.3.28f1; everything except the background music is generated from code.
 
-The idea and direction came from the whole team; the Unity prototype was built by Chengyan Tong, almost entirely with Claude Code as pair programmer, iterating on teammates' playtest feedback. The breathing in the demo is simulated: the prototype hears breathing through a microphone (sound, not airflow), so it is a non-medical demonstration only.
+**Team:** Chengyan Tong (team lead, Unity build), Ruohao Sun, [Yutong Deng](https://github.com/Deyuug) and Junyi Wang. The idea and direction came from the whole team; the Unity prototype was built by Chengyan Tong, almost entirely with Claude Code as pair programmer, iterating on teammates' playtest feedback. The breathing in the demo is simulated: the prototype hears breathing through a microphone (sound, not airflow), so it is a non-medical demonstration only.
 
 The rest of this README is in Chinese.
 
