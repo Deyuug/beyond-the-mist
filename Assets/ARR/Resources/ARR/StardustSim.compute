@@ -1,0 +1,277 @@
+// Breath-Responsive Starlight Mist (GPU particles, built-in pipeline).
+//
+// Three layers:
+//   kind 0  Flowing Ribbons   starlight dust held on the zero-isolines of a slowly evolving noise field
+//   kind 1  Air Mist          fine mist hanging in the air around the boat
+//   kind 2  Floating Stars    sparse brighter points
+// Each breath launches a forward-travelling puff of air (see BreathFlow.cs for the incompressible jet model).
+// Particles have inertia: they are dragged by the moving air rather than set to it, so the mist is pushed
+// forward and aside, swirls in the wake, and is slowly drawn back in behind the puff.
+#pragma kernel Init
+#pragma kernel Step
+
+struct Particle
+{
+    float3 pos;
+    float life;
+    float3 vel;
+    float maxLife;
+    float3 home;     // air mist: where this bit of mist drifts back to
+    float seed;
+    float kind;
+    float offset;    // ribbons: lateral offset from the centre line (metres)
+    float size;
+    float pad;
+};
+
+RWStructuredBuffer<Particle> _Particles;
+uint _Count;
+float _Time, _Dt;
+float3 _Boat, _Fwd, _Right;
+float _Calm;             // 1 when the clinician paused: everything slows
+float _RibbonScale, _FlowSpeed, _Turbulence;
+float4 _PuffOrigin[20];   // xyz origin, w = puff centre distance along the axis
+float4 _PuffAxis[20];     // x,z axis direction, z = strength (m/s), w = width
+float4 _PuffLength[20];   // x = length
+float4 _Radial;           // xyz = boat, w = signed speed (m/s): + outward (out-breath), - inward (in-breath)
+float _RadialRadius;      // how far the boat-centred breathing reaches (m)
+
+float hash11(float p) { p = frac(p * 0.1031); p *= p + 33.33; p *= p + p; return frac(p); }
+float3 hash31(float p) { float3 p3 = frac(float3(p, p, p) * float3(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yzx + 33.33); return frac((p3.xxy + p3.yzz) * p3.zyx); }
+
+// ---------------------------------------------------------------- simplex noise (Ashima / Gustavson)
+float3 mod289(float3 x) { return x - floor(x / 289.0) * 289.0; }
+float4 mod289(float4 x) { return x - floor(x / 289.0) * 289.0; }
+float4 permute(float4 x) { return mod289((x * 34.0 + 1.0) * x); }
+float4 taylorInvSqrt(float4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+float snoise(float3 v)
+{
+    const float2 C = float2(1.0 / 6.0, 1.0 / 3.0);
+    float3 i = floor(v + dot(v, C.yyy));
+    float3 x0 = v - i + dot(i, C.xxx);
+    float3 g = step(x0.yzx, x0.xyz);
+    float3 l = 1.0 - g;
+    float3 i1 = min(g.xyz, l.zxy);
+    float3 i2 = max(g.xyz, l.zxy);
+    float3 x1 = x0 - i1 + C.xxx;
+    float3 x2 = x0 - i2 + C.yyy;
+    float3 x3 = x0 - 0.5;
+    i = mod289(i);
+    float4 p = permute(permute(permute(i.z + float4(0.0, i1.z, i2.z, 1.0)) + i.y + float4(0.0, i1.y, i2.y, 1.0)) + i.x + float4(0.0, i1.x, i2.x, 1.0));
+    float4 j = p - 49.0 * floor(p / 49.0);
+    float4 x_ = floor(j / 7.0);
+    float4 y_ = floor(j - 7.0 * x_);
+    float4 x = (x_ * 2.0 + 0.5) / 7.0 - 1.0;
+    float4 y = (y_ * 2.0 + 0.5) / 7.0 - 1.0;
+    float4 h = 1.0 - abs(x) - abs(y);
+    float4 b0 = float4(x.xy, y.xy);
+    float4 b1 = float4(x.zw, y.zw);
+    float4 s0 = floor(b0) * 2.0 + 1.0;
+    float4 s1 = floor(b1) * 2.0 + 1.0;
+    float4 sh = -step(h, 0.0);
+    float4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+    float4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+    float3 g0 = float3(a0.xy, h.x);
+    float3 g1 = float3(a0.zw, h.y);
+    float3 g2 = float3(a1.xy, h.z);
+    float3 g3 = float3(a1.zw, h.w);
+    float4 norm = taylorInvSqrt(float4(dot(g0, g0), dot(g1, g1), dot(g2, g2), dot(g3, g3)));
+    g0 *= norm.x; g1 *= norm.y; g2 *= norm.z; g3 *= norm.w;
+    float4 m = max(0.6 - float4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+    m = m * m;
+    return 42.0 * dot(m * m, float4(dot(g0, x0), dot(g1, x1), dot(g2, x2), dot(g3, x3)));
+}
+
+// ---------------------------------------------------------------- ribbon field
+// Ribbons are the zero-isolines of F(x,z). Returns F and its gradient (per metre).
+float3 Ribbon(float2 xz)
+{
+    float t = _Time * 0.015;
+    float s = _RibbonScale;
+    const float e = 0.5;
+    float f = snoise(float3(xz * s, t));
+    float fx = snoise(float3((xz + float2(e, 0)) * s, t));
+    float fz = snoise(float3((xz + float2(0, e)) * s, t));
+    return float3(f, (fx - f) / e, (fz - f) / e);
+}
+
+float RibbonHeight(float2 xz)
+{
+    return 2.6 + 4.5 * (snoise(float3(xz * 0.006 + 13.1, _Time * 0.01)) * 0.5 + 0.5);
+}
+
+float3 curl(float3 p)
+{
+    const float e = 0.15;
+    float3 dx = float3(e, 0, 0), dy = float3(0, e, 0), dz = float3(0, 0, e);
+    float a = snoise(p + dy) - snoise(p - dy);
+    float b = snoise(p + dz + 17.0) - snoise(p - dz + 17.0);
+    float c = snoise(p + dx + 41.0) - snoise(p - dx + 41.0);
+    float d = snoise(p + dz) - snoise(p - dz);
+    float f = snoise(p + dx + 17.0) - snoise(p - dx + 17.0);
+    float g = snoise(p + dy + 41.0) - snoise(p - dy + 41.0);
+    return float3(g - b, d - c, f - a) / (2.0 * e);
+}
+
+// ---------------------------------------------------------------- breath air flow
+// Axisymmetric incompressible puff: axial u = U f g, radial u_r = -U f' w^2/(2r) (1-g).
+float3 BreathAir(float3 p, out float intensity)
+{
+    float3 v = 0;
+    intensity = 0;
+    [loop] for (int i = 0; i < 20; i++)
+    {
+        float u = _PuffAxis[i].z;
+        if (u < 1e-3) continue;
+        float3 ax = float3(_PuffAxis[i].x, 0, _PuffAxis[i].y);
+        float3 rel = p - _PuffOrigin[i].xyz;
+        float s = dot(rel, ax);
+        float3 radial = rel - ax * s;
+        float rho = length(radial);
+        float w = _PuffAxis[i].w;
+        float l = _PuffLength[i].x;
+        float x = (s - _PuffOrigin[i].w) / l;
+        float f = exp(-x * x);
+        float df = -2.0 * x / l * f;
+        float g = exp(-rho * rho / (w * w));
+        v += ax * (u * f * g);
+        if (rho > 1e-3) v += radial / rho * (-u * df * w * w / (2.0 * rho) * (1.0 - g));
+        intensity += f * g * u / 4.6;
+    }
+    return v;
+}
+
+// ---------------------------------------------------------------- spawning
+void SpawnRibbon(inout Particle P, float s)
+{
+    float3 r = hash31(s), r2 = hash31(s + 5.31);
+    float2 xz = _Boat.xz + _Right.xz * ((r.x * 2 - 1) * 120) + _Fwd.xz * lerp(-10, 175, r.y);
+    for (int k = 0; k < 4; k++)   // Newton steps onto the nearest isoline
+    {
+        float3 F = Ribbon(xz);
+        float2 g = F.yz;
+        xz -= F.x * g / (dot(g, g) + 1e-5);
+    }
+    P.offset = (r2.x - 0.5) * (r2.y < 0.7 ? 1.6 : 4.5);
+    P.pos = float3(xz.x, RibbonHeight(xz) + (r.z - 0.5) * 1.4, xz.y);
+    P.home = P.pos;
+    P.vel = 0;
+    P.maxLife = 10 + r2.z * 14;
+}
+
+void SpawnMist(inout Particle P, float s, bool anywhere)
+{
+    float3 r = hash31(s), r2 = hash31(s + 3.7);
+    float ahead = anywhere ? lerp(-14, 100, r.y) : lerp(70, 102, r.y);
+    P.home = _Boat + _Right * ((r.x * 2 - 1) * 48) + _Fwd * ahead + float3(0, 0.5 + pow(r.z, 1.6) * 6.5, 0);
+    P.pos = P.home;
+    P.vel = 0;
+    P.maxLife = 14 + r2.x * 16;
+}
+
+void Spawn(inout Particle P, uint id, float salt, bool initial, bool anywhere)
+{
+    float s = id * 1.618 + salt * 7.13;
+    float3 r = hash31(s + 2.2);
+    if (P.kind < 0.5) SpawnRibbon(P, s);
+    else if (P.kind < 1.5) SpawnMist(P, s, anywhere);
+    else
+    {
+        float3 r2 = hash31(s + 9.9);
+        P.pos = _Boat + _Right * ((r.x * 2 - 1) * 110) + _Fwd * lerp(-20, 160, r.y) + float3(0, 1.5 + r.z * 18, 0);
+        P.home = P.pos;
+        P.vel = 0;
+        P.maxLife = 8 + r2.x * 10;
+    }
+    P.life = initial ? P.maxLife * lerp(0.3, 1.0, hash11(s + 0.77)) : P.maxLife;
+}
+
+void Classify(inout Particle P, uint id)
+{
+    P.seed = hash11(id * 0.7319 + 0.5);
+    float k = hash11(id * 1.37 + 0.11);
+    P.kind = k < 0.22 ? 1 : (k < 0.27 ? 2 : 0);
+    float3 r = hash31(id * 3.1 + 0.3);
+    P.size = P.kind > 1.5 ? 0.18 + r.x * 0.22 : (P.kind > 0.5 ? 0.10 + r.x * 0.12 : 0.05 + r.x * 0.07);
+    P.pad = 0;
+}
+
+[numthreads(256, 1, 1)]
+void Init(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Count) return;
+    Particle P;
+    P.pos = 0; P.vel = 0; P.home = 0; P.life = 0; P.maxLife = 1; P.offset = 0;
+    Classify(P, id.x);
+    Spawn(P, id.x, 0, true, true);
+    _Particles[id.x] = P;
+}
+
+[numthreads(256, 1, 1)]
+void Step(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Count) return;
+    Particle P = _Particles[id.x];
+    float dt = _Dt;
+    float calm = 1 - _Calm * 0.7;
+
+    float intensity;
+    float3 air = BreathAir(P.pos, intensity);
+    // boat-centred breathing: the floating motes (starlight ribbons and stars, never the mist) are pushed out
+    // on the out-breath and drawn in on the in-breath
+    if (P.kind < 0.5 || P.kind > 1.5)
+    {
+        float2 d = P.pos.xz - _Radial.xz;
+        float r = length(d) + 1e-3;
+        float reach = saturate(r / 3.0) * exp(-r / _RadialRadius);
+        float u = _Radial.w * reach;
+        air += float3(d.x / r * u, max(u, 0) * 0.15, d.y / r * u);
+        intensity += abs(u) / 4.6;
+    }
+    // small eddies inside the moving air: a turbulent wake, never a rigid push
+    air += curl(P.pos * 0.18 + float3(0, _Time * 0.6, 0)) * intensity * 1.3;
+    float3 flow = curl(P.pos * 0.035 + float3(0, _Time * 0.05, 0)) * _Turbulence;
+
+    float3 target;
+    float drag;
+    if (P.kind < 0.5)
+    {
+        float3 F = Ribbon(P.pos.xz);
+        float2 grad = F.yz;
+        float gl = length(grad) + 1e-5;
+        float2 n = grad / gl;
+        float signedDist = F.x / gl;
+        float2 toward = -n * (signedDist - P.offset) * 0.6 * (1 - saturate(intensity));   // drift back once the air settles
+        float2 along = float2(-n.y, n.x) * _FlowSpeed;
+        float dy = (RibbonHeight(P.pos.xz) - P.pos.y) * 0.4 * (1 - saturate(intensity));
+        target = float3(toward.x + along.x, dy, toward.y + along.y) * calm + flow * 0.4 + air;
+        drag = 1.8;
+    }
+    else if (P.kind < 1.5)
+    {
+        // mist hanging in the air: drifts with a faint breeze, settles back slowly after a breath has passed
+        P.home += float3(0.22, 0, 0.1) * dt;
+        float3 back = (P.home - P.pos) * 0.16 * (1 - saturate(intensity * 1.5));
+        target = (flow * 0.5 + back) * calm + air;
+        drag = 2.4;
+    }
+    else
+    {
+        target = flow * 0.35 * calm + air;
+        drag = 1.2;
+    }
+    P.vel += (target - P.vel) * (1 - exp(-dt * drag));
+    P.pos += P.vel * dt;
+    P.pos.y = max(P.pos.y, 0.3);
+    P.life -= dt;
+
+    float3 fb = (P.kind > 0.5 && P.kind < 1.5 ? P.home : P.pos) - _Boat;
+    float ahead = dot(fb, _Fwd);
+    bool outside = P.kind > 0.5 && P.kind < 1.5
+        ? (ahead < -18 || ahead > 108 || abs(dot(fb, _Right)) > 54)
+        : (ahead < -45 || ahead > 185 || abs(dot(fb, _Right)) > 130);
+    // expired mist re-forms nearby; mist the boat has sailed past re-forms ahead
+    if (P.life <= 0 || outside) Spawn(P, id.x, 1 + frac(_Time * 0.731), false, !outside);
+    _Particles[id.x] = P;
+}

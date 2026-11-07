@@ -1,0 +1,21 @@
+/Library/
+/Temp/
+/Obj/
+/Logs/
+/UserSettings/
+/Builds/
+*.csproj
+*.sln
+.DS_Store
+
+# Hackathon hand-off material (speech notes, zipped builds) — builds go to GitHub Releases
+/Share/
+# Superseded by docs/BeyondTheMist_demo.mp4
+/docs/BeyondTheMist_promo.mp4
+# Unity scratch
+/Temp/
+/MemoryCaptures/
+/Recordings/
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta

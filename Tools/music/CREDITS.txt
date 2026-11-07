@@ -1,0 +1,4 @@
+"Silver Blue Light" by Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 4.0 License
+http://creativecommons.org/licenses/by/4.0/
+Used as background music in docs/BeyondTheMist_demo.mp4 (first 75 s, faded in and out, mixed with the game's sea sound).
